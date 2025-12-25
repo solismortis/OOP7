@@ -575,7 +575,7 @@ class PaintWidget(QPushButton):
             elif self.mode == 'Square':
                 shape_container.append(Square(x, y))
                 self.parent.parent.set_mode('Select')
-            elif self.mode == 'Arrow':
+            elif self.mode == 'Arrow1':
                 # Deselect all
                 for shape in shape_container:
                     shape.selected = False
@@ -584,27 +584,27 @@ class PaintWidget(QPushButton):
                 print('Select object 1')
                 for shape in shape_container:
                     if shape.got_selected(x, y):
-                        obj1 = shape
+                        self.obj1 = shape
                         break
 
-                # Test area
-                shape_container.append(Arrow(points=[
-                        Point(obj1.center_x, obj1.center_y),
-                        Point(obj1.center_x+50, obj1.center_y+50)]))
+                self.parent.parent.set_mode('Arrow2')
 
-                # if obj1:
-                #     # Select object 2
-                #     print('Select object 2')
-                #     for shape in shape_container:
-                #         if shape is not obj1 and shape.got_selected(x, y):
-                #             obj2 = shape
-                #             break
-                #
-                # # Create arrow
-                # if obj1 and obj2:
-                #     shape_container.append(Arrow(points=[
-                #         Point(obj1.center_x, obj1.center_y),
-                #         Point(obj2.center_x, obj2.center_y)]))
+            elif self.mode == 'Arrow2':
+                # Select object 2
+                print('Select object 2')
+                for shape in shape_container:
+                    if shape is not self.obj1 and shape.got_selected(x, y):
+                        obj2 = shape
+                        break
+
+                # Deselect all
+                for shape in shape_container:
+                    shape.selected = False
+
+                # Create arrow
+                shape_container.append(Arrow(points=[
+                    Point(self.obj1.center_x, self.obj1.center_y),
+                    Point(obj2.center_x, obj2.center_y)]))
 
                 self.parent.parent.set_mode('Select')
 
@@ -759,7 +759,7 @@ class MainWindow(QMainWindow):
         creation_toolbar.addAction("Circle", partial(self.set_mode, 'Circle'))
         creation_toolbar.addAction("Rectangle", partial(self.set_mode, 'Rectangle'))
         creation_toolbar.addAction("Square", partial(self.set_mode, 'Square'))
-        creation_toolbar.addAction("Arrow", partial(self.set_mode, 'Arrow'))
+        creation_toolbar.addAction("Arrow", partial(self.set_mode, 'Arrow1'))
         self.addToolBar(creation_toolbar)
 
     def set_mode(self, mode):
