@@ -1,4 +1,13 @@
 # Copied from OOP6
+# Arrow
+# - Check if move possible for observers
+# - Loading arrow connection doesn't work (need IDs, I guess)
+# - Detach observers
+#
+# Tree
+# - Expand groups
+# - Rewrite to update only on work with container?
+
 """Qt hates floats in coords"""
 import math
 import sys
@@ -25,13 +34,30 @@ from PyQt6.QtWidgets import (QApplication,
 RADIUS = 70
 MOVE_DIST = 40
 SCALE_INCREMENT = 2  # Some ellipse bug. Must be int
-shape_container = []
 CENTER_COLOR = 'red'
 
-test_data = [
-    [["obj1", "obj2", ["deeper1", "deeper2"]], "obj3", ["obj4", "obj5"]],
-    ["obj6", ["obj7", ["deeper3", "deeper4", "even_deeper"]], "obj8"]
-]
+
+class ShapeContainer:
+    def __init__(self, arr=None, obs_tree=None):
+        if not arr:
+            arr = []
+        self.arr = arr
+        self.obs_tree = obs_tree
+
+    def notify_tree(self):
+        update_tree(self.obs_tree, self.arr)
+    
+    def append(self, obj):
+        self.arr.append(obj)
+        self.notify_tree()
+    
+    def remove(self, obj):
+        self.arr.remove(obj)
+        self.notify_tree()
+
+
+shape_container = ShapeContainer()
+
 
 def add_items_recursive(parent_item, objs):
     if isinstance(objs, list):  # For shape_container
@@ -129,6 +155,7 @@ class Group(Shape):
             # If at least 1 is selected, the entire group is
             if obj.got_selected(x, y):
                 self.selected = True
+                self.tree_item.setSelected(True)
                 return True
         return False
 
@@ -501,6 +528,7 @@ class Rectangle(ConnectedPointGroup):
         if self.center_x - self.width/2 <= x <= self.center_x + self.width/2 \
             and self.center_y - self.height/2 <= y <= self.center_y + self.height/2:
             self.selected = True
+            self.tree_item.setSelected(True)
             return True
         return False
 
@@ -579,7 +607,7 @@ class PaintWidget(QPushButton):
         pen.setWidth(5)
         painter.begin(self)
 
-        for shape in shape_container:
+        for shape in shape_container.arr:
             if shape.selected:
                 pen.setColor(QColor('#0dff00'))  # Lime
             else:
@@ -591,7 +619,7 @@ class PaintWidget(QPushButton):
         pen.setWidth(1)
         pen.setColor(QColor(CENTER_COLOR))
         painter.setPen(pen)
-        for shape in shape_container:
+        for shape in shape_container.arr:
             shape.draw_center(painter)
 
         painter.end()
@@ -602,35 +630,35 @@ class PaintWidget(QPushButton):
         if self.mode == 'Select':
             if not self.intersect_select:
                 selected = False
-                for shape in shape_container:
+                for shape in shape_container.arr:
                     if shape.got_selected(x, y):
                         selected = True
                         if not self.ctrl_multiple_select:
-                            for other_shape in shape_container:
+                            for other_shape in shape_container.arr:
                                 if other_shape != shape:
                                     other_shape.selected = False
                             break
                 if selected:
                     print("Selected!")
                 else:  # Nothing selected, deselect all
-                    for shape in shape_container:
+                    for shape in shape_container.arr:
                         shape.selected = False
             else:  # intersect_select
                 selected = False
                 if not self.ctrl_multiple_select:
-                    for shape in shape_container:
+                    for shape in shape_container.arr:
                         shape.selected = False
-                for shape in shape_container:
+                for shape in shape_container.arr:
                     if shape.got_selected(x, y):
                         selected = True
                 if selected:
                     print("Selected!")
                 else:  # Nothing selected, deselect all
-                    for shape in shape_container:
+                    for shape in shape_container.arr:
                         shape.selected = False
         else:  # Modes other than "select"
             # Deselect all
-            for shape in shape_container:
+            for shape in shape_container.arr:
                 shape.selected = False
             # Add shape
             if self.mode == 'Ellipse':
@@ -647,12 +675,12 @@ class PaintWidget(QPushButton):
                 self.parent.parent.set_mode('Select')
             elif self.mode == 'Arrow1':
                 # Deselect all
-                for shape in shape_container:
+                for shape in shape_container.arr:
                     shape.selected = False
 
                 # Select object 1
                 print('Select object 1')
-                for shape in shape_container:
+                for shape in shape_container.arr:
                     if shape.got_selected(x, y):
                         self.obj1 = shape
                         break
@@ -662,13 +690,13 @@ class PaintWidget(QPushButton):
             elif self.mode == 'Arrow2':
                 # Select object 2
                 print('Select object 2')
-                for shape in shape_container:
+                for shape in shape_container.arr:
                     if shape is not self.obj1 and shape.got_selected(x, y):
                         obj2 = shape
                         break
 
                 # Deselect all
-                for shape in shape_container:
+                for shape in shape_container.arr:
                     shape.selected = False
 
                 # Create arrow
@@ -701,7 +729,7 @@ class PaintWidget(QPushButton):
 
         # Move all selected
         if key == Qt.Key.Key_Up:
-            for shape in shape_container:
+            for shape in shape_container.arr:
                 if shape.selected and shape.move_possible(
                 0,
                 -MOVE_DIST,
@@ -711,7 +739,7 @@ class PaintWidget(QPushButton):
                     shape.move(0, -MOVE_DIST)
             self.update()
         elif key == Qt.Key.Key_Down:
-            for shape in shape_container:
+            for shape in shape_container.arr:
                 if shape.selected and shape.move_possible(
                 0,
                 MOVE_DIST,
@@ -721,7 +749,7 @@ class PaintWidget(QPushButton):
                     shape.move(0, MOVE_DIST)
             self.update()
         elif key == Qt.Key.Key_Left:
-            for shape in shape_container:
+            for shape in shape_container.arr:
                 if shape.selected and shape.move_possible(
                 -MOVE_DIST,
                 0,
@@ -731,7 +759,7 @@ class PaintWidget(QPushButton):
                     shape.move(-MOVE_DIST, 0)
             self.update()
         elif key == Qt.Key.Key_Right:
-            for shape in shape_container:
+            for shape in shape_container.arr:
                 if shape.selected and shape.move_possible(
                 MOVE_DIST,
                 0,
@@ -743,14 +771,14 @@ class PaintWidget(QPushButton):
 
         # Change size of all selected
         elif key == Qt.Key.Key_Minus:
-            for shape in shape_container:
+            for shape in shape_container.arr:
                 if shape.selected:
                     shape.resize(-SCALE_INCREMENT,
                                  self.size().width(),
                                  self.size().height())
             self.update()
         elif key == Qt.Key.Key_Equal:
-            for shape in shape_container:
+            for shape in shape_container.arr:
                 if shape.selected:
                     shape.resize(SCALE_INCREMENT,
                                  self.size().width(),
@@ -760,7 +788,7 @@ class PaintWidget(QPushButton):
         # Delete all selected
         elif key == Qt.Key.Key_Delete:
             shapes_to_delete = []
-            for shape in shape_container:
+            for shape in shape_container.arr:
                 if shape.selected:
                     shapes_to_delete.append(shape)
             for shape in shapes_to_delete:
@@ -771,7 +799,7 @@ class PaintWidget(QPushButton):
 
         # For debugging tree
         elif key == Qt.Key.Key_T:
-            update_tree(self.parent.tree, shape_container)
+            update_tree(self.parent.tree, shape_container.arr)
 
     def keyReleaseEvent(self, event):
         # Get the key code of the pressed key
@@ -803,7 +831,8 @@ class CentralWidget(QWidget):
         self.tree.setColumnCount(2)
         self.tree.setHeaderLabels(["Name", "Type"])
         self.tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
-        update_tree(self.tree, shape_container)
+        update_tree(self.tree, shape_container.arr)
+        shape_container.obs_tree = self.tree
         self.paint_n_tree_layout = QHBoxLayout()
         self.paint_n_tree_layout.addWidget(self.paint_button)
         self.paint_n_tree_layout.addWidget(self.tree)
@@ -866,14 +895,14 @@ class MainWindow(QMainWindow):
 
     def change_color(self):
         color = QColorDialog.getColor()
-        for shape in shape_container:
+        for shape in shape_container.arr:
             if shape.selected:
                 shape.color = color
 
     def group(self):
         group = Group()
         shapes_to_remove_from_container = []
-        for shape in shape_container:
+        for shape in shape_container.arr:
             if shape.selected:
                 group.add(shape)
                 shapes_to_remove_from_container.append(shape)
@@ -885,7 +914,7 @@ class MainWindow(QMainWindow):
 
     def ungroup(self):
         shapes_to_remove_from_container = []
-        for shape in shape_container:
+        for shape in shape_container.arr:
             if shape.selected and type(shape) is Group:
                 for obj in shape.objs:
                     shape_container.append(obj)
@@ -900,15 +929,15 @@ class MainWindow(QMainWindow):
         filename = QFileDialog.getSaveFileName()[0]
         with open(filename, 'w') as file:
             # Save container size
-            file.write(f'{len(shape_container)}\n')
+            file.write(f'{len(shape_container.arr)}\n')
             # Save all shapes
-            for shape in shape_container:
+            for shape in shape_container.arr:
                 shape.save(file)
 
     def load(self):
         # Clear the global container
         global shape_container
-        shape_container = []
+        shape_container.arr = []
 
         filename = QFileDialog.getOpenFileName()[0]
         with open(filename, 'r') as file:
