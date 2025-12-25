@@ -54,10 +54,14 @@ class Shape:
         return True
 
     def move(self, dx, dy):
+        if self.updating:
+            return
+        self.updating = True
         self.center_x += dx
         self.center_y += dy
         for obs in self.observers:
             obs.move(dx, dy)
+        self.updating = False
 
     def draw_center(self, painter):
         painter.drawLine(self.center_x - 10,
@@ -113,12 +117,16 @@ class Group(Shape):
         return True
 
     def move(self, dx, dy):
+        if self.updating:
+            return
+        self.updating = True
         self.center_x += dx
         self.center_y += dy
         for obj in self.objs:
             obj.move(dx, dy)
         for obs in self.observers:
             obs.move(dx, dy)
+        self.updating = False
 
     def resize(self, ds, widget_width, widget_height):
         for obj in self.objs:
@@ -176,10 +184,14 @@ class Ellipse(Shape):
         return True
 
     def move(self, dx, dy):
+        if self.updating:
+            return
+        self.updating = True
         self.center_x += dx
         self.center_y += dy
         for obs in self.observers:
             obs.move(dx, dy)
+        self.updating = False
 
     def paint(self, painter):
         painter.drawEllipse(QPoint(self.center_x, self.center_y), self.r1, self.r2)
@@ -253,13 +265,16 @@ class ConnectedPointGroup(Shape):
         return True
 
     def move(self, dx, dy):
+        if self.updating:
+            return
+        self.updating = True
         self.center_x += dx
         self.center_y += dy
         for point in self.points:
             point.move(dx, dy)
         for obs in self.observers:
             obs.move(dx, dy)
-        return True
+        self.updating = False
 
     def paint(self, painter):
         point0 = self.points[0]
@@ -343,6 +358,9 @@ class Arrow(ConnectedPointGroup):
         return True
 
     def move(self, dx, dy):
+        if self.updating:
+            return
+        self.updating = True
         # Updates points based on parent objects
         self.points[0].center_x = self.start_obj.center_x
         self.points[0].center_y = self.start_obj.center_y
@@ -350,7 +368,7 @@ class Arrow(ConnectedPointGroup):
         self.points[1].center_y = self.end_obj.center_y
         for obs in self.observers:
             obs.move(dx, dy)
-        return True
+        self.updating = False
 
     def draw_center(self, painter):
         # Don't draw
