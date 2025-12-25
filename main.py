@@ -10,13 +10,16 @@ from PyQt6.QtGui import QBrush, QColor, QPainter, QPixmap, QMouseEvent, QPen
 from PyQt6.QtWidgets import (QApplication,
                              QColorDialog,
                              QFileDialog,
+                             QHeaderView,
                              QLabel,
                              QMainWindow,
                              QPushButton,
                              QSizePolicy,
                              QToolBar,
                              QVBoxLayout,
-                             QWidget)
+                             QWidget,
+                             QTreeWidget,
+                             QTreeWidgetItem, QHBoxLayout)
 
 
 RADIUS = 70
@@ -25,17 +28,47 @@ SCALE_INCREMENT = 2  # Some ellipse bug. Must be int
 shape_container = []
 CENTER_COLOR = 'red'
 
+test_data = [
+    [["obj1", "obj2", ["deeper1", "deeper2"]], "obj3", ["obj4", "obj5"]],
+    ["obj6", ["obj7", ["deeper3", "deeper4", "even_deeper"]], "obj8"]
+]
+
+def add_items_recursive(parent_item, objs):
+    if isinstance(objs, list):  # For shape_container
+        for obj in objs:
+            item = QTreeWidgetItem([str(obj), str(type(obj))])
+            # item.setSelected()
+            obj.tree_item = item
+            parent_item.addChild(item)
+            if isinstance(obj, Group):
+                add_items_recursive(item, obj)
+    # elif isinstance(items, Ellipse):
+    #     item = QTreeWidgetItem(['Ellipse', 'Fake ID'])
+    #     parent_item.addChild(item)
+
+def update_tree(tree, new_data):
+    # Clear all existing top-level items
+    tree.clear()
+    # Create a new root item
+    root_item = QTreeWidgetItem(['shape_container', str(type(new_data))])
+    tree.insertTopLevelItem(0, root_item)
+    # Add new data recursively
+    add_items_recursive(root_item, new_data)
+    tree.expandAll()
+
 
 class Shape:
     def __init__(self, center_x, center_y):
         self.center_x = center_x
         self.center_y = center_y
-        self.color = "#FF0000"  # Red
+        self.color = "red"  # Red
         self.selected = False
         self.observers = []
         self.updating = False  # Antiloop
+        self.tree_item = None  # Corresponding tree item
 
     def got_selected(self, x, y):
+        # Make sure corresponding tree item is notified
         pass
 
     def move_possible(self, dx, dy, widget_width, widget_height):
@@ -167,6 +200,7 @@ class Ellipse(Shape):
         if ((x-self.center_x)/self.r1)**2 \
             + ((y-self.center_y)/self.r2)**2 <= 1:
             self.selected = True
+            self.tree_item.setSelected(True)
             return True
         return False
 
@@ -347,6 +381,7 @@ class Arrow(ConnectedPointGroup):
                  end_obj=None,
                  points: list[Point]=None):
         super().__init__(center_x, center_y)
+        self.color = "blue"  # Red
         if not points:
             points = []
         self.points = points
@@ -734,6 +769,10 @@ class PaintWidget(QPushButton):
         elif key == Qt.Key.Key_Control:
             self.ctrl_multiple_select = True
 
+        # For debugging tree
+        elif key == Qt.Key.Key_T:
+            update_tree(self.parent.tree, shape_container)
+
     def keyReleaseEvent(self, event):
         # Get the key code of the pressed key
         key = event.key()
@@ -758,9 +797,17 @@ class CentralWidget(QWidget):
                                  "Press Z to change intersect select mode")
         self.main_layout.addWidget(self.info_label)
 
-        # Paint
+        # Paint and tree
         self.paint_button = PaintWidget(parent=self)
-        self.main_layout.addWidget(self.paint_button)
+        self.tree = QTreeWidget()
+        self.tree.setColumnCount(2)
+        self.tree.setHeaderLabels(["Name", "Type"])
+        self.tree.header().setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
+        update_tree(self.tree, shape_container)
+        self.paint_n_tree_layout = QHBoxLayout()
+        self.paint_n_tree_layout.addWidget(self.paint_button)
+        self.paint_n_tree_layout.addWidget(self.tree)
+        self.main_layout.addLayout(self.paint_n_tree_layout)
 
         # Intersect label
         self.intersect_select_label = QLabel(f"Intersect select mode: {self.paint_button.intersect_select}")
@@ -876,5 +923,6 @@ class MainWindow(QMainWindow):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     window = MainWindow()
+    window.showMaximized()
     window.show()
     exit(app.exec())
