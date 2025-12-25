@@ -1,68 +1,103 @@
 import sys
 from PyQt6.QtWidgets import QApplication, QWidget
-from PyQt6.QtGui import QPainter, QPen, QColor
-from PyQt6.QtCore import QPointF
-import math
+from PyQt6.QtGui import QPainter, QColor, QPen, QBrush
+from PyQt6.QtCore import pyqtSignal, QPoint, Qt
 
-class ArrowWidget(QWidget):
-    def __init__(self, start: QPointF, end: QPointF, parent=None):
-        super().__init__(parent)
-        self.start = start
-        self.end = end
-        # Arrowhead parameters
+
+# Observer Pattern Interfaces and Base Classes
+class Observer:
+    def update(self, position: QPoint):
+        """Called when the subject changes."""
+        pass
+
+
+class Subject:
+    def __init__(self):
+        self._observers = []
+
+    def attach(self, observer: Observer):
+        self._observers.append(observer)
+
+    def detach(self, observer: Observer):
+        self._observers.remove(observer)
+
+    def notify_observers(self, position: QPoint):
+        for observer in self._observers:
+            observer.update(position)
+
+
+# Concrete Subject: The leader circle with movement notifications
+class Circle(Subject):
+    def __init__(self, position: QPoint, radius: int = 20, color: QColor = QColor("black")):
+        super().__init__()
+        self.position = position
+        self.radius = radius
+        self.color = color
+
+    def move_to(self, position: QPoint):
+        self.position = position
+        self.notify_observers(position)  # Notify observers of the move
+
+
+# Concrete Observer: The follower circle that react to the leader's movement
+class FollowerCircle(Observer, Circle):
+    def __init__(self, position: QPoint, radius: int = 20, color: QColor = QColor("red")):
+        # Initialize as Observer and also a Circle (for drawing)
+        Observer.__init__(self)
+        Circle.__init__(self, position, radius, color)
+        self.offset = QPoint(50, 50)  # Follow with an offset
+
+    def update(self, leader_position: QPoint):
+        # Follow the leader's position with an offset
+        self.position = leader_position + self.offset
+
+
+# Drawing Widget: Displays and handles interaction for the shapes
+class DrawingWidget(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Observer Pattern: Following Circles")
+        self.setFixedSize(400, 300)
+
+        # Create leader and follower
+        self.leader = Circle(QPoint(100, 100), radius=20, color=QColor("black"))
+        self.follower = FollowerCircle(QPoint(150, 150), radius=15, color=QColor("red"))
+
+        # Attach the follower as an observer of the leader
+        self.leader.attach(self.follower)
+
+        self.dragging_leader = False
 
     def paintEvent(self, event):
-        arrowhead_length = 20.0
-        arrowhead_angle = 25.0
         painter = QPainter(self)
-        pen = QPen(QColor("#FF0000"), 2)  # Black pen, width 2
-        painter.setPen(pen)
+        painter.setPen(QPen(QColor("black"), 2))
 
-        # Draw the shaft (main line)
-        painter.drawLine(self.start, self.end)
+        # Draw leader (filled circle)
+        painter.setBrush(QBrush(self.leader.color))
+        painter.drawEllipse(self.leader.position, self.leader.radius, self.leader.radius)
 
-        # Calculate arrowhead points
-        # Vector from start to end
-        dx = self.end.x() - self.start.x()
-        dy = self.end.y() - self.start.y()
-        length = math.sqrt(dx**2 + dy**2)
+        # Draw follower (filled circle)
+        painter.setBrush(QBrush(self.follower.color))
+        painter.drawEllipse(self.follower.position, self.follower.radius, self.follower.radius)
 
-        if length == 0:
-            return  # No arrow if start and end are the same
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            if (event.pos() - self.leader.position).manhattanLength() < self.leader.radius:
+                self.dragging_leader = True
 
-        # Unit vector in the direction of the line
-        ux = dx / length
-        uy = dy / length
+    def mouseMoveEvent(self, event):
+        if self.dragging_leader:
+            self.leader.move_to(event.pos())
+            self.update()  # Trigger repaint
 
-        # Rotate unit vector by arrowhead_angle degrees for left side
-        angle_rad = math.radians(arrowhead_angle)
-        cos_angle = math.cos(angle_rad)
-        sin_angle = math.sin(angle_rad)
-        # Perpendicular for right side (counter-clockwise rotation)
-        left_x = ux * cos_angle - uy * sin_angle
-        left_y = ux * sin_angle + uy * cos_angle
-        # Perpendicular for left side (clockwise rotation)
-        right_x = ux * cos_angle + uy * sin_angle
-        right_y = -ux * sin_angle + uy * cos_angle
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.dragging_leader = False
 
-        # Arrowhead tip is at end
-        # Left point: move backward along left direction subtracted from a reduced end
-        arrowhead_left = QPointF(
-            self.end.x() - arrowhead_length * left_x,
-            self.end.y() - arrowhead_length * left_y
-        )
-        arrowhead_right = QPointF(
-            self.end.x() - arrowhead_length * right_x,
-            self.end.y() - arrowhead_length * right_y
-        )
 
-        # Draw the arrowhead lines
-        painter.drawLine(self.end, arrowhead_left)
-        painter.drawLine(self.end, arrowhead_right)
-
+# Main Application
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    widget = ArrowWidget(QPointF(200, 150), QPointF(50, 50))
-    widget.setGeometry(100, 100, 400, 300)  # Adjust size as needed
+    widget = DrawingWidget()
     widget.show()
     sys.exit(app.exec())

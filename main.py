@@ -32,6 +32,7 @@ class Shape:
         self.center_y = center_y
         self.color = "#FF0000"  # Red
         self.selected = False
+        self.observers = []
 
     def got_selected(self, x, y):
         pass
@@ -51,9 +52,14 @@ class Shape:
             return False
         return True
 
+    def notify_observers(self, dx, dy):
+        for obs in self.observers:
+            obs.move(dx, dy)
+
     def move(self, dx, dy):
         self.center_x += dx
         self.center_y += dy
+        self.notify_observers(dx, dy)
 
     def draw_center(self, painter):
         painter.drawLine(self.center_x - 10,
@@ -113,6 +119,7 @@ class Group(Shape):
         self.center_y += dy
         for obj in self.objs:
             obj.move(dx, dy)
+        self.notify_observers(dx, dy)
 
     def resize(self, ds, widget_width, widget_height):
         for obj in self.objs:
@@ -172,6 +179,7 @@ class Ellipse(Shape):
     def move(self, dx, dy):
         self.center_x += dx
         self.center_y += dy
+        self.notify_observers(dx, dy)
 
     def paint(self, painter):
         painter.drawEllipse(QPoint(self.center_x, self.center_y), self.r1, self.r2)
@@ -249,6 +257,7 @@ class ConnectedPointGroup(Shape):
         self.center_y += dy
         for point in self.points:
             point.move(dx, dy)
+        self.notify_observers(dx, dy)
         return True
 
     def paint(self, painter):
@@ -318,21 +327,26 @@ class Arrow(ConnectedPointGroup):
     def __init__(self,
                  center_x=0,
                  center_y=0,
+                 start_obj=None,
+                 end_obj=None,
                  points: list[Point]=None):
         super().__init__(center_x, center_y)
         if not points:
             points = []
         self.points = points
+        self.start_obj = start_obj
+        self.end_obj = end_obj
 
     def move_possible(self, dx, dy, widget_width, widget_height):
         # Always possible
         return True
 
     def move(self, dx, dy):
-        self.center_x += dx
-        self.center_y += dy
-        for point in self.points:
-            point.move(dx, dy)
+        # Updates points based on parent objects
+        self.points[0].center_x = self.start_obj.center_x
+        self.points[0].center_y = self.start_obj.center_y
+        self.points[1].center_x = self.end_obj.center_x
+        self.points[1].center_y = self.end_obj.center_y
         return True
 
     def draw_center(self, painter):
@@ -602,9 +616,15 @@ class PaintWidget(QPushButton):
                     shape.selected = False
 
                 # Create arrow
-                shape_container.append(Arrow(points=[
-                    Point(self.obj1.center_x, self.obj1.center_y),
-                    Point(obj2.center_x, obj2.center_y)]))
+                arrow = Arrow(start_obj=self.obj1, end_obj=obj2,
+                    points=[Point(self.obj1.center_x, self.obj1.center_y),
+                        Point(obj2.center_x, obj2.center_y)])
+                shape_container.append(arrow)
+
+                # Add observers
+                self.obj1.observers.append(obj2)
+                self.obj1.observers.append(arrow)
+                obj2.observers.append(arrow)
 
                 self.parent.parent.set_mode('Select')
 
