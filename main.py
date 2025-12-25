@@ -33,6 +33,7 @@ class Shape:
         self.color = "#FF0000"  # Red
         self.selected = False
         self.observers = []
+        self.updating = False  # Antiloop
 
     def got_selected(self, x, y):
         pass
@@ -52,14 +53,11 @@ class Shape:
             return False
         return True
 
-    def notify_observers(self, dx, dy):
-        for obs in self.observers:
-            obs.move(dx, dy)
-
     def move(self, dx, dy):
         self.center_x += dx
         self.center_y += dy
-        self.notify_observers(dx, dy)
+        for obs in self.observers:
+            obs.move(dx, dy)
 
     def draw_center(self, painter):
         painter.drawLine(self.center_x - 10,
@@ -119,7 +117,8 @@ class Group(Shape):
         self.center_y += dy
         for obj in self.objs:
             obj.move(dx, dy)
-        self.notify_observers(dx, dy)
+        for obs in self.observers:
+            obs.move(dx, dy)
 
     def resize(self, ds, widget_width, widget_height):
         for obj in self.objs:
@@ -179,7 +178,8 @@ class Ellipse(Shape):
     def move(self, dx, dy):
         self.center_x += dx
         self.center_y += dy
-        self.notify_observers(dx, dy)
+        for obs in self.observers:
+            obs.move(dx, dy)
 
     def paint(self, painter):
         painter.drawEllipse(QPoint(self.center_x, self.center_y), self.r1, self.r2)
@@ -257,7 +257,8 @@ class ConnectedPointGroup(Shape):
         self.center_y += dy
         for point in self.points:
             point.move(dx, dy)
-        self.notify_observers(dx, dy)
+        for obs in self.observers:
+            obs.move(dx, dy)
         return True
 
     def paint(self, painter):
@@ -347,6 +348,8 @@ class Arrow(ConnectedPointGroup):
         self.points[0].center_y = self.start_obj.center_y
         self.points[1].center_x = self.end_obj.center_x
         self.points[1].center_y = self.end_obj.center_y
+        for obs in self.observers:
+            obs.move(dx, dy)
         return True
 
     def draw_center(self, painter):
